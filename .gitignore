@@ -1,0 +1,7 @@
+build/
+release/
+*.dll
+*.obj
+*.lib
+*.zip
+*.log

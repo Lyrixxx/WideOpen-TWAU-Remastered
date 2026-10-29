@@ -1,0 +1,31 @@
+; SPDX-License-Identifier: GPL-3.0-or-later
+LIBRARY kernel32.dll
+EXPORTS
+GetModuleHandleW
+GetModuleFileNameW
+VirtualProtect
+FlushInstructionCache
+GetCurrentProcess
+LoadLibraryW
+GetProcAddress
+GetSystemDirectoryW
+CreateFileW
+WriteFile
+FlushFileBuffers
+GetPrivateProfileStringW
+DisableThreadLibraryCalls
+CreateThread
+Sleep
+GetPrivateProfileSectionW
+GetTickCount64
+GetLocalTime
+CreateDirectoryW
+ReadFile
+CloseHandle
+DeleteFileW
+FindFirstFileW
+FindNextFileW
+FindClose
+GetCurrentProcessId
+VirtualAlloc
+VirtualFree
