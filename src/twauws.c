@@ -87,7 +87,7 @@ void *memcpy(void *d, const void *s, u64 n) {
     return d;
 }
 
-#define VERSION "1.0.0-dev.5"
+#define VERSION "1.0.0-dev.6"
 
 // build.sh passes WO_DEV=1 for -dev versions: test conveniences on (speed / screenshot hotkeys, detailed
 // log). Release builds ship the settings players want, with nothing extra switched on.
@@ -1831,6 +1831,23 @@ static void init(void) {
     put(DETAIL ? ", log detailed" : ", log normal (Log=2 for detailed)");
     line_end();
     if (g_log_fallback) log_s("WARNING: LogFile path could not be created - logging to TWAUWidescreen.log instead");
+    if (cfg.enabled && cfg.mode169) {
+        // 16:9 mode = the original framing: settings that change framing or the widescreen layout step aside
+        int fov_changed = g_ncamovr > 0;
+        for (int t = 0; t < CT_COUNT; t++) {
+            if (t == CT_FX) continue;
+            fov_changed |= g_fov_type[t] != 1.0f;
+            g_fov_type[t] = 1.0f;
+        }
+        g_ncamovr = 0;
+        cfg.hud_edges = 0;
+        cfg.menu_bars = 0;
+        line_begin();
+        put("16:9 mode: original framing - FOV 1.0");
+        put(fov_changed ? " (your FOV settings are ignored)" : "");
+        put(", inventory and menu frames as in the game, comparison screenshots off");
+        line_end();
+    }
     if (g_gamever[0] == 'u') log_s("note: game version not found in the exe (shown as unknown)");
     if (g_gamebuild[0] == 'u') {
         line_begin();

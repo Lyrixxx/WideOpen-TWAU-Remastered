@@ -781,6 +781,7 @@ static void load_hotkey_config(void) {
 
 static void init_hotkeys(void) {
     load_hotkey_config();
+    if (cfg.mode169) g_shotcfg.key = 0; // the panels compare against the widescreen picture
     // clashes: both features on one key, or a key the developer menus use (F1 = debug menu)
     if (g_speedcfg.key && g_speedcfg.key == g_shotcfg.key) {
         log_s("WARNING: [Speed] and [Screenshots] use the same key - speed key switched off");
