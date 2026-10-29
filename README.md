@@ -10,4 +10,8 @@ Download and install: see [Releases](../../releases). Drop `dinput8.dll` (and op
 `TWAUWidescreen.ini`) next to `TheWolfAmongUsRemastered.exe`.
 Linux / Steam Deck: Steam launch options `WINEDLLOVERRIDES="dinput8=n,b" %command%`.
 
+Note: the game was made for 16:9. In widescreen you can see past the intended frame - characters meant
+to be off screen (possible spoilers) and scenes that end at the edges. `Mode=16:9` in the ini gives the
+original framing with black bars.
+
 Build: `./build.sh` (clang, lld, llvm, python3). License: GPL-3.0-or-later, see [LICENSE](LICENSE).
