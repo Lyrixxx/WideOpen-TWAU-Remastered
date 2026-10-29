@@ -87,7 +87,7 @@ void *memcpy(void *d, const void *s, u64 n) {
     return d;
 }
 
-#define VERSION "1.0.0-dev.3"
+#define VERSION "1.0.0-dev.4"
 
 // build.sh passes WO_DEV=1 for -dev versions: test conveniences on (speed / screenshot hotkeys, detailed
 // log). Release builds ship the settings players want, with nothing extra switched on.
@@ -101,6 +101,7 @@ static struct {
     int enabled;      // master switch
     float aspect;     // 0 = follow the screen (auto); otherwise the aspect scene cameras get
     int block16x9;    // ignore RenderForce_16_by_9_AspectRatio (pillarboxing)
+    int mode169;      // [Display] Mode=16:9: the game's own 16:9 picture with black bars, at any resolution
     int all_res;      // list every display mode, not only the built-in 16:9/16:10 sizes
     int log;          // 0 off, 1 normal (what the mod did, once), 2 detailed (everything, for bug hunting)
     int aa;           // EnumRenderAntialiasType to start with, -1 = leave the game's default
@@ -114,7 +115,7 @@ static struct {
     int dev_menus;    // the scripts' developer menus (IsShipping() = false)
     int fx_169;       // mirror / effects cameras keep a 16:9 aspect
     char hide_lua[2048]; // "TWAUWS_HIDE = {'a','b'}" from [UI] HideAgents
-} cfg = {1, 0.0f, 1, 1, 1, 9, 4, 0, 1, 1, 1, 1.0f, 1, 0, 1, {0}};
+} cfg = {1, 0.0f, 1, 0, 1, 1, 9, 4, 0, 1, 1, 1, 1.0f, 1, 0, 1, {0}};
 
 // camera FOV per type (see camera_type) and [CameraOverrides] name prefixes
 enum { CT_OTHER, CT_EXPLORE, CT_CUTSCENE, CT_DIALOGUE, CT_MENU, CT_UI, CT_FX, CT_COUNT };
@@ -234,6 +235,8 @@ static void load_config(void) {
               : (buf[0] == '2' || buf[0] == 'd' || buf[0] == 'D')                                ? 2
                                                                                                  : 1;
     BOOLKEY(L"Display", L"Block16x9", L"Fix", NULL, block16x9);
+    ini_get(L"Display", L"Mode", NULL, NULL, L"widescreen", buf, 64);
+    cfg.mode169 = buf[0] == '1' && buf[1] == '6'; // "16:9" / "16x9"; anything else = widescreen
     BOOLKEY(L"Display", L"AllResolutions", L"Fix", NULL, all_res);
     ini_get(L"Display", L"AspectRatio", L"Fix", NULL, L"auto", buf, 64);
     cfg.aspect = parse_aspect(buf);
@@ -1180,16 +1183,46 @@ static int nop2(u8 *at) {
     return 1;
 }
 
+// RenderSetAspectRatio native: ...; movaps xmm0,xmm6; call setter. Setter: ucomiss xmm0,[rip+last];
+// movss [rip+desired],xmm0; je; mov byte [rip+dirty],1; ret. "desired" is the aspect the forced viewport uses.
+static float *g_desired_aspect;
+static u8 *find_desired_aspect(void) {
+    u8 *nat = find_lua_native("RenderSetAspectRatio");
+    if (!nat) return NULL;
+    for (u32 i = 0; i < 0x60; i++)
+        if (eq(nat + i, "\x0F\x28\xC6\xE8", 4)) {
+            u8 *f = follow(nat + i + 8 + *(i32 *)(nat + i + 4));
+            if (eq(f, "\x0F\x2E\x05", 3) && eq(f + 7, "\xF3\x0F\x11\x05", 4) && f[15] == 0x74 && eq(f + 17, "\xC6\x05", 2)) {
+                g_desired_aspect = (float *)rip_target(f + 7, 4, 8);
+                return f;
+            }
+        }
+    return NULL;
+}
+
+// Mode=16:9: if the game hasn't asked for its 16:9 viewport yet, switch it on the way it does (flag,
+// desired aspect 16/9, render settings dirty). Called from SceneAdd on the game thread.
+static int g_mode169_done;
+static void ensure_mode169(void) {
+    if (g_mode169_done || !cfg.enabled || !cfg.mode169 || !g_force_flag) return;
+    g_mode169_done = 1;
+    if (*g_force_flag && (!g_desired_aspect || *g_desired_aspect == 1.7777778f)) return; // already on
+    if (g_desired_aspect) *g_desired_aspect = 1.7777778f;
+    *g_force_flag = 1;
+    *g_force_dirty = 1;
+    log_s("16:9 mode: black bars switched on by the mod (the game had not asked yet)");
+}
+
 static void hook_force_16x9(u8 on) {
     if (!g_force_logged) {
         g_force_logged = 1;
         line_begin();
         put("game asked for a forced 16:9 viewport (");
         put_int(on);
-        put(cfg.enabled && cfg.block16x9 ? "): blocked" : "): allowed");
+        put(!cfg.enabled ? "): allowed" : cfg.mode169 ? "): on (Mode=16:9)" : cfg.block16x9 ? "): blocked" : "): allowed");
         line_end();
     }
-    u8 want = (cfg.enabled && cfg.block16x9) ? 0 : on;
+    u8 want = !cfg.enabled ? on : cfg.mode169 ? 1 : cfg.block16x9 ? 0 : on;
     if (*g_force_flag != want) {
         *g_force_flag = want;
         *g_force_dirty = 1;
@@ -1649,6 +1682,7 @@ static lua_cfunc g_real_scene_add;
 static int g_ui_logged, g_bars_logged, g_dev_logged;
 
 static int hook_scene_add(void *L) {
+    ensure_mode169();
     if (cfg.enabled && cfg.hud_edges) {
         run_lua(k_ui_fix, g_ui_logged ? NULL : "HUD anchors at the screen edges (inventory)");
         g_ui_logged = 1;
@@ -1865,6 +1899,16 @@ static void init(void) {
         } else
             log_s("ERROR: camera FOV: SetHFOV not found (game update?)");
     }
+
+    if (find_desired_aspect()) {
+        if (DETAIL) {
+            line_begin();
+            put("desired-aspect setter found (16:9 mode)");
+            line_end();
+        }
+    } else if (cfg.mode169)
+        log_s("WARNING: 16:9 mode: desired-aspect setter not found - relying on the game's own 16:9 request");
+    if (cfg.mode169) log_s("display mode: 16:9 with black bars (Mode=16:9)");
 
     u8 *force = find_force_setter();
     if (force) {
