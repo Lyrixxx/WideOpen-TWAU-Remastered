@@ -1,6 +1,8 @@
 WideOpen - The Wolf Among Us Remastered
 =======================================
 
+![The Wolf Among Us Remastered at 32:9](https://raw.githubusercontent.com/Lyrixxx/WideOpen/main/screenshots/TheWolfAmongUsRemastered.webp)
+
 Ultrawide and wider support for The Wolf Among Us Remastered, plus hidden settings and extras.
 Part of [WideOpen](https://github.com/Lyrixxx/WideOpen).
 
