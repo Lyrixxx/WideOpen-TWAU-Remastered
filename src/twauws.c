@@ -60,13 +60,14 @@ __declspec(dllimport) BOOL WINAPI CreateDirectoryW(const wchar *, void *);
 __declspec(dllimport) BOOL WINAPI ReadFile(HANDLE, void *, u32, u32 *, void *);
 __declspec(dllimport) BOOL WINAPI CloseHandle(HANDLE);
 __declspec(dllimport) BOOL WINAPI DeleteFileW(const wchar *);
-typedef struct {
+typedef struct { // WIN32_FIND_DATAW: FILETIMEs are two DWORDs (4-byte aligned), so the name sits at 44
     u32 attrs;
-    u64 created, accessed, written;
+    u32 created[2], accessed[2], written[2]; // low, high
     u32 size_hi, size_lo, res0, res1;
     wchar name[260];
     wchar alt[14];
 } FINDDATA_;
+_Static_assert(__builtin_offsetof(FINDDATA_, name) == 44, "WIN32_FIND_DATAW layout");
 __declspec(dllimport) HANDLE WINAPI FindFirstFileW(const wchar *, FINDDATA_ *);
 __declspec(dllimport) BOOL WINAPI FindNextFileW(HANDLE, FINDDATA_ *);
 __declspec(dllimport) BOOL WINAPI FindClose(HANDLE);
@@ -86,7 +87,7 @@ void *memcpy(void *d, const void *s, u64 n) {
     return d;
 }
 
-#define VERSION "1.0.0-dev.2"
+#define VERSION "1.0.0-dev.3"
 
 // build.sh passes WO_DEV=1 for -dev versions: test conveniences on (speed / screenshot hotkeys, detailed
 // log). Release builds ship the settings players want, with nothing extra switched on.
@@ -749,7 +750,7 @@ static void prune_logs(const wchar *tpl, int keep) {
     if (h == (HANDLE)(i64)-1) return;
     do {
         if (!(fd.attrs & 0x10) && n < 200) {
-            f[n].t = fd.written;
+            f[n].t = (u64)fd.written[1] << 32 | fd.written[0];
             int i = 0;
             for (; fd.name[i] && i < 259; i++) f[n].name[i] = fd.name[i];
             f[n].name[i] = 0;
