@@ -760,7 +760,7 @@ static void load_hotkey_config(void) {
     ini_get(L"Speed", L"Enabled", NULL, NULL, WO_DEV ? L"1" : L"0", buf, 64); // release: off unless asked for
     if (!parse_value(buf, &f)) f = WO_DEV; // unreadable: the build's default
     if (f == 0) g_speedcfg.key = 0;
-    ini_get(L"Speed", L"Mode", NULL, NULL, L"toggle", buf, 64);
+    ini_get(L"Speed", L"KeyAction", L"Speed", L"Mode", L"toggle", buf, 64);
     g_speedcfg.hold = (buf[0] | 32) == 'h';
     ini_get(L"Speed", L"Factor", NULL, NULL, L"3.0", buf, 64);
     g_speedcfg.factor = parse_value(buf, &f) && f >= 0.1f && f <= 10.0f ? f : 3.0f;
@@ -781,6 +781,19 @@ static void load_hotkey_config(void) {
 
 static void init_hotkeys(void) {
     load_hotkey_config();
+    // clashes: both features on one key, or a key the developer menus use (F1 = debug menu)
+    if (g_speedcfg.key && g_speedcfg.key == g_shotcfg.key) {
+        log_s("WARNING: [Speed] and [Screenshots] use the same key - speed key switched off");
+        g_speedcfg.key = 0;
+    }
+    if (cfg.dev_menus && g_speedcfg.key == 0x70) {
+        log_s("WARNING: [Speed] Key=F1 clashes with the developer debug menu (F1) - speed key switched off");
+        g_speedcfg.key = 0;
+    }
+    if (cfg.dev_menus && g_shotcfg.key == 0x70) {
+        log_s("WARNING: [Screenshots] Key=F1 clashes with the developer debug menu (F1) - screenshot key switched off");
+        g_shotcfg.key = 0;
+    }
     HANDLE u = LoadLibraryW(L"user32.dll");
     if (u) {
         pGetAsyncKeyState = (getasynckeystate_t)GetProcAddress(u, "GetAsyncKeyState");

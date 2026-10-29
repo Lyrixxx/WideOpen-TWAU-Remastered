@@ -87,7 +87,7 @@ void *memcpy(void *d, const void *s, u64 n) {
     return d;
 }
 
-#define VERSION "1.0.0-dev.4"
+#define VERSION "1.0.0-dev.5"
 
 // build.sh passes WO_DEV=1 for -dev versions: test conveniences on (speed / screenshot hotkeys, detailed
 // log). Release builds ship the settings players want, with nothing extra switched on.
@@ -234,15 +234,18 @@ static void load_config(void) {
     cfg.log = (buf[0] == '0' || buf[0] == 'o' || buf[0] == 'O' || buf[0] == 'n' || buf[0] == 'N') ? 0
               : (buf[0] == '2' || buf[0] == 'd' || buf[0] == 'D')                                ? 2
                                                                                                  : 1;
+    // Mode decides black bars; Block16x9 is the pre-1.0 key (no longer in the ini): Block16x9=0 = 16:9 mode
     BOOLKEY(L"Display", L"Block16x9", L"Fix", NULL, block16x9);
-    ini_get(L"Display", L"Mode", NULL, NULL, L"widescreen", buf, 64);
-    cfg.mode169 = buf[0] == '1' && buf[1] == '6'; // "16:9" / "16x9"; anything else = widescreen
+    ini_get(L"Display", L"Mode", NULL, NULL, L"", buf, 64);
+    if (buf[0]) cfg.mode169 = buf[0] == '1' && buf[1] == '6'; // "16:9" / "16x9"; anything else = widescreen
+    else cfg.mode169 = !cfg.block16x9;
+    cfg.block16x9 = !cfg.mode169;
     BOOLKEY(L"Display", L"AllResolutions", L"Fix", NULL, all_res);
     ini_get(L"Display", L"AspectRatio", L"Fix", NULL, L"auto", buf, 64);
     cfg.aspect = parse_aspect(buf);
     // EnumRenderAntialiasType: 0 none, 1 FXAA, 2 SMAA, 3-5 MSAA 2/4/8x, 6-8 TAA+MSAA 2/4/8x, 9 TAA.
     // MSAA is not offered: the PC render path turns MSAA into FXAA and TAA+MSAA into plain TAA.
-    ini_get(L"AntiAliasing", L"Mode", NULL, NULL, L"auto", buf, 64);
+    ini_get(L"AntiAliasing", L"Method", L"AntiAliasing", L"Mode", L"auto", buf, 64);
     if (buf[0] == 'g' || buf[0] == 'G') cfg.aa = -1;
     else if (buf[0] == 'n' || buf[0] == 'N' || buf[0] == '0') cfg.aa = 0;
     else if (buf[0] == 'f' || buf[0] == 'F') cfg.aa = 1;
@@ -261,12 +264,12 @@ static void load_config(void) {
     else if (buf[0] >= '0' && buf[0] <= '9') cfg.mipbias = (int)parse_aspect(buf);
     else cfg.mipbias = 0;
     BOOLKEY(L"Startup", L"SkipToMenu", NULL, NULL, skip_to_menu);
-    BOOLKEY(L"UI", L"HUDAtScreenEdges", NULL, NULL, hud_edges);
+    BOOLKEY(L"UI", L"InventoryAtScreenEdge", L"UI", L"HUDAtScreenEdges", hud_edges);
     BOOLKEY(L"UI", L"FixLoadingIcon", NULL, NULL, fix_overlay);
     {
         // [UI] HideAgents = comma-separated agent names -> Lua table (names: letters, digits, _ - . only)
         static wchar list[1024];
-        GetPrivateProfileStringW(L"UI", L"HideAgents", L"", list, 1024, ini);
+        ini_get(L"UI", L"HideElements", L"UI", L"HideAgents", L"", list, 1024);
         int o = 0;
         const char *head = "TWAUWS_HIDE = {";
         while (*head) cfg.hide_lua[o++] = *head++;
@@ -290,16 +293,16 @@ static void load_config(void) {
     ini_get(L"UI", L"MenuEdgeFrames", NULL, NULL, L"stretch", buf, 64);
     cfg.menu_bars = (buf[0] == 'h' || buf[0] == 'H') ? 2 : (buf[0] == 'g' || buf[0] == 'G' || buf[0] == '0') ? 0 : 1;
     BOOLKEY(L"Dev", L"DebugMenus", NULL, NULL, dev_menus);
-    BOOLKEY(L"Camera", L"MirrorsAt16x9", NULL, NULL, fx_169);
+    BOOLKEY(L"Camera", L"FixMirrors", L"Camera", L"MirrorsAt16x9", fx_169);
     ini_get(L"Camera", L"FOV", L"Camera", L"FOVMultiplier", L"1.0", buf, 64);
     cfg.fov_mul = parse_aspect(buf);
     if (cfg.fov_mul < 0.5f || cfg.fov_mul > 2.0f) cfg.fov_mul = 1.0f;
     {
         // per type: blank = FOV for game cameras, 1.0 for menu/UI/effects cameras
         static const wchar *const keys[CT_COUNT] = {L"FOVOther", L"FOVExplore", L"FOVCutscene", L"FOVDialogue",
-                                                    L"FOVMenu", L"FOVUI", L"FOVEffects"};
+                                                    L"FOVMenuBackground", L"FOVUI", L"FOVEffects"};
         for (int t = 0; t < CT_COUNT; t++) {
-            ini_get(L"Camera", keys[t], NULL, NULL, L"", buf, 64);
+            ini_get(L"Camera", keys[t], t == CT_MENU ? L"Camera" : NULL, t == CT_MENU ? L"FOVMenu" : NULL, L"", buf, 64);
             float v = buf[0] ? parse_aspect(buf) : (t >= CT_FIRST_FIXED ? 1.0f : cfg.fov_mul);
             g_fov_type[t] = (v >= 0.5f && v <= 2.0f) ? v : 1.0f;
         }
