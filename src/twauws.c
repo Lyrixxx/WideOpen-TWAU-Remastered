@@ -87,7 +87,7 @@ void *memcpy(void *d, const void *s, u64 n) {
     return d;
 }
 
-#define VERSION "1.0.0-dev.6"
+#define VERSION "1.0.0"
 
 // build.sh passes WO_DEV=1 for -dev versions: test conveniences on (speed / screenshot hotkeys, detailed
 // log). Release builds ship the settings players want, with nothing extra switched on.
